@@ -1,0 +1,212 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountType {
+  BUSINESS
+  CREATOR
+}
+
+enum SubscriptionTier {
+  BASELINE
+  PROMOTION
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+}
+
+enum PostStatus {
+  DRAFT
+  PENDING_REVIEW
+  SCHEDULED
+  PUBLISHED
+  FAILED
+}
+
+enum AdCampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  fullName      String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  isActive      Boolean   @default(true)
+  deletedAt     DateTime?
+
+  // Relations
+  instagramAccounts InstagramAccount[]
+  subscriptions     Subscription[]
+  surveyResponses   SurveyResponse[]
+  globalStrategies  GlobalStrategy[]
+
+  @@map("users")
+}
+
+model InstagramAccount {
+  id              String    @id @default(uuid())
+  userId          String
+  accessToken     String
+  igUserId        String    @unique
+  username        String
+  accountType     AccountType
+  connectedAt     DateTime  @default(now())
+  lastTokenRefresh DateTime?
+  isActive        Boolean   @default(true)
+  deletedAt       DateTime?
+  
+  // Rate limiting fields
+  dailyPostCount  Int       @default(0)
+  lastPostAt      DateTime?
+  rateLimitReset  DateTime?
+
+  // Relations
+  user            User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("instagram_accounts")
+}
+
+model Subscription {
+  id              String            @id @default(uuid())
+  userId          String
+  tier            SubscriptionTier
+  monthlyAmount   Decimal          @db.Decimal(10, 2)
+  startDate       DateTime
+  endDate         DateTime?
+  status          SubscriptionStatus
+  paymentDetails  Json?
+  createdAt       DateTime         @default(now())
+  lastModifiedBy  String?
+
+  // Relations
+  user            User             @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("subscriptions")
+}
+
+model SurveyResponse {
+  id           String   @id @default(uuid())
+  userId       String
+  question     String
+  answer       String   @db.Text
+  metaData     Json?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("survey_responses")
+}
+
+model GlobalStrategy {
+  id              String    @id @default(uuid())
+  userId          String
+  brandIdentity   Json
+  toneOfVoice     Json
+  postFrequency   Int
+  contentThemes   Json
+  visualStyles    Json
+  narrative       String    @db.Text
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  version         Int       @default(1)
+  previousVersionId String?
+  lastModifiedBy  String?
+
+  // Relations
+  user            User      @relation(fields: [userId], references: [id])
+  previousVersion GlobalStrategy? @relation("VersionHistory", fields: [previousVersionId], references: [id])
+  nextVersions    GlobalStrategy[] @relation("VersionHistory")
+  monthlyStrategies MonthlyStrategy[]
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@map("global_strategies")
+}
+
+model MonthlyStrategy {
+  id                String    @id @default(uuid())
+  globalStrategyId  String
+  month             Int
+  year              Int
+  contentPlan       Json
+  totalPosts        Int
+  createdAt         DateTime  @default(now())
+  expiresAt         DateTime
+
+  // Relations
+  globalStrategy    GlobalStrategy @relation(fields: [globalStrategyId], references: [id], onDelete: Cascade)
+  posts            Post[]
+
+  @@index([globalStrategyId])
+  @@map("monthly_strategies")
+}
+
+model Post {
+  id                String    @id @default(uuid())
+  monthlyStrategyId String
+  title             String
+  description       String    @db.Text
+  content          Json
+  images           Json
+  hashtags         Json
+  scheduledFor     DateTime
+  publishedAt      DateTime?
+  status           PostStatus @default(DRAFT)
+  analytics        Json?
+  createdAt        DateTime  @default(now())
+  lastModifiedBy   String?
+
+  // Relations
+  monthlyStrategy   MonthlyStrategy @relation(fields: [monthlyStrategyId], references: [id], onDelete: Cascade)
+  adCampaigns      AdCampaign[]
+
+  @@index([monthlyStrategyId])
+  @@index([scheduledFor])
+  @@index([status])
+  @@index([scheduledFor, status])
+  @@map("posts")
+}
+
+model AdCampaign {
+  id                String           @id @default(uuid())
+  postId            String
+  budget            Decimal         @db.Decimal(10, 2)
+  targeting         Json
+  startDate         DateTime
+  endDate           DateTime
+  status            AdCampaignStatus @default(DRAFT)
+  performanceMetrics Json?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  lastModifiedBy    String?
+
+  // Relations
+  post              Post            @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([status])
+  @@index([startDate, status])
+  @@map("ad_campaigns")
+}
