@@ -1,27 +1,58 @@
-import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import Landing from '../pages/Landing';
-import InstagramConnect from '../pages/InstagramConnect';
-import SubscriptionSelection from '../pages/SubscriptionSelection';
-import BusinessTutorial from '../pages/BusinessTutorial';
-import DynamicSurvey from '../pages/DynamicSurvey';
-import Dashboard from '../pages/Dashboard';
-import Settings from '../pages/Settings';
+import React, { ReactNode } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
+import styles from './MainLayout.module.css';
 
-const MainLayout: React.FC = () => {
+interface MainLayoutProps {
+  children: ReactNode;
+}
+
+const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+  const { state: { user }, logout } = useAuth();
+  const location = useLocation();
+
   return (
-    <div className="main-layout">
-      <main className="main-content">
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/connect" element={<InstagramConnect />} />
-          <Route path="/subscription" element={<SubscriptionSelection />} />
-          <Route path="/tutorial" element={<BusinessTutorial />} />
-          <Route path="/survey" element={<DynamicSurvey />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+    <div>
+      <header className={styles.header}>
+        <nav className={styles.nav}>
+          <div className={styles.navContent}>
+            <div className={styles.leftSection}>
+              <Link to="/" className={styles.logo}>
+                Mosh
+              </Link>
+              
+              <div className={styles.navLinks}>
+                <Link 
+                  to="/dashboard" 
+                  className={`${styles.navLink} ${location.pathname === '/dashboard' ? styles.active : ''}`}
+                >
+                  Dashboard
+                </Link>
+                <Link 
+                  to="/settings" 
+                  className={`${styles.navLink} ${location.pathname === '/settings' ? styles.active : ''}`}
+                >
+                  Settings
+                </Link>
+              </div>
+            </div>
+
+            <div>
+              {user?.id && (
+                <button
+                  onClick={logout}
+                  className="btn btn-danger"
+                >
+                  Logout
+                </button>
+              )}
+            </div>
+          </div>
+        </nav>
+      </header>
+
+      <main className={styles.main}>
+        {children}
       </main>
     </div>
   );

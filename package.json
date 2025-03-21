@@ -2,11 +2,11 @@
   "name": "mosh-backend",
   "version": "1.0.0",
   "description": "Automated social media post application for Instagram",
-  "main": "server.js",
-  "type": "module",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev:server": "nodemon server.js",
+    "start": "node dist/server.js",
+    "dev:server": "nodemon --exec ts-node src/server.ts",
+    "build": "tsc",
     "dev:client": "cd frontend && npm start",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -29,20 +29,29 @@
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^6.5.0",
+    "axios": "^1.8.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-session": "^1.18.1",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.14.0",
     "prisma": "^6.5.0",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "winston": "^3.17.0"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
+    "@types/express-session": "^1.18.1",
+    "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^22.13.10",
+    "@types/winston": "^2.4.4",
     "concurrently": "^9.1.2",
     "eslint": "^9.22.0",
     "nodemon": "^3.1.9",
-    "prettier": "^3.5.3"
+    "prettier": "^3.5.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.2"
   }
 }

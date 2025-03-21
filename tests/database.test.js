@@ -9,7 +9,7 @@ async function testDatabaseConnection() {
       data: {
         email: 'test@example.com',
         passwordHash: 'test-hash',
-        fullName: 'Test User'
+        fullName: 'Test User',
       },
     });
     console.log('✓ Create operation successful:', user.id);
@@ -32,9 +32,9 @@ async function testDatabaseConnection() {
       data: {
         userId: user.id,
         tier: 'BASELINE',
-        monthlyAmount: 30.00,
+        monthlyAmount: 30.0,
         startDate: new Date(),
-        status: 'ACTIVE'
+        status: 'ACTIVE',
       },
     });
     console.log('✓ Relationship creation successful:', subscription.id);
@@ -44,7 +44,10 @@ async function testDatabaseConnection() {
       where: { id: user.id },
       include: { subscriptions: true },
     });
-    console.log('✓ Relationship query successful:', userWithSubscription.subscriptions.length === 1);
+    console.log(
+      '✓ Relationship query successful:',
+      userWithSubscription.subscriptions.length === 1
+    );
 
     // Cleanup: Delete test data
     await prisma.subscription.deleteMany({

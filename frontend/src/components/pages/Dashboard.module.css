@@ -1,0 +1,166 @@
+.dashboard {
+  padding: 1.5rem 0;
+}
+
+.header {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.content {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.welcomeCard {
+  background-color: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.welcomeTitle {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.welcomeText {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--color-text-light);
+}
+
+.statsGrid {
+  margin-top: 2rem;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+}
+
+.statCard {
+  background-color: var(--color-surface);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius);
+}
+
+.statContent {
+  padding: 1.25rem;
+}
+
+.statInner {
+  display: flex;
+  align-items: center;
+}
+
+.statIcon {
+  flex-shrink: 0;
+}
+
+.statIconSvg {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--color-text-light);
+}
+
+.statInfo {
+  margin-left: 1.25rem;
+  width: 100%;
+  flex: 1;
+}
+
+.statLabel {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.statValue {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.getStartedSection {
+  margin-top: 2rem;
+  background-color: #ebf5ff;
+  border-radius: var(--radius);
+  padding: 1.5rem;
+}
+
+.getStartedTitle {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #1e40af;
+}
+
+.actionsGrid {
+  margin-top: 1.25rem;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+.actionCard {
+  position: relative;
+  background-color: var(--color-surface);
+  padding: 1.5rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s;
+  cursor: pointer;
+  border: none;
+  text-align: left;
+  width: 100%;
+}
+
+.actionCard:hover {
+  box-shadow: var(--shadow);
+}
+
+.actionTitle {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.actionDescription {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--color-text-light);
+}
+
+@media (min-width: 640px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .actionsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .statsGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .actionsGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

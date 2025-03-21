@@ -1,104 +1,74 @@
-import React, { createContext, useReducer, useCallback } from 'react';
-import { AuthState, AuthContextType, LoginCredentials } from '../types/auth.types';
+import React, { createContext, useContext, useReducer, useCallback, ReactNode } from 'react';
+import { instagramConfig } from '../config/instagram';
+import { axiosInstance } from '../config/axios';
+import type { AuthState, AuthContextType, User } from '../types/auth.types';
 
 const initialState: AuthState = {
   user: null,
-  isAuthenticated: false,
   loading: false,
   error: null,
 };
 
-type AuthAction =
-  | { type: 'LOGIN_REQUEST' }
-  | { type: 'LOGIN_SUCCESS'; payload: AuthState['user'] }
-  | { type: 'LOGIN_FAILURE'; payload: string }
-  | { type: 'LOGOUT' }
+type Action =
+  | { type: 'SET_LOADING' }
+  | { type: 'SET_USER'; payload: User | null }
+  | { type: 'SET_ERROR'; payload: string }
   | { type: 'CLEAR_ERROR' };
 
-function authReducer(state: AuthState, action: AuthAction): AuthState {
+const authReducer = (state: AuthState, action: Action): AuthState => {
   switch (action.type) {
-    case 'LOGIN_REQUEST':
-      return {
-        ...state,
-        loading: true,
-        error: null,
-      };
-    case 'LOGIN_SUCCESS':
-      return {
-        ...state,
-        user: action.payload,
-        isAuthenticated: true,
-        loading: false,
-        error: null,
-      };
-    case 'LOGIN_FAILURE':
-      return {
-        ...state,
-        user: null,
-        isAuthenticated: false,
-        loading: false,
-        error: action.payload,
-      };
-    case 'LOGOUT':
-      return {
-        ...state,
-        user: null,
-        isAuthenticated: false,
-        loading: false,
-        error: null,
-      };
+    case 'SET_LOADING':
+      return { ...state, loading: true, error: null };
+    case 'SET_USER':
+      return { ...state, user: action.payload, loading: false, error: null };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload, loading: false };
     case 'CLEAR_ERROR':
-      return {
-        ...state,
-        error: null,
-      };
+      return { ...state, error: null };
     default:
       return state;
   }
+};
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+interface AuthProviderProps {
+  children: ReactNode;
 }
 
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
-  const login = useCallback(async (credentials: LoginCredentials) => {
+  const loginWithInstagram = useCallback(() => {
+    const { clientId, redirectUri, scopes } = instagramConfig;
+    const scopeString = scopes.join(',');
+    const url = `https://api.instagram.com/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scopeString}&response_type=code`;
+    window.location.href = url;
+  }, []);
+
+  const handleInstagramCallback = useCallback(async (code: string) => {
     try {
-      dispatch({ type: 'LOGIN_REQUEST' });
-      // TODO: Implement actual API call here
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(credentials),
-      });
-
-      if (!response.ok) {
-        throw new Error('Login failed');
-      }
-
-      const data = await response.json();
-      dispatch({ type: 'LOGIN_SUCCESS', payload: data.user });
+      dispatch({ type: 'SET_LOADING' });
+      const response = await axiosInstance.post('/auth/instagram/callback', { code });
+      dispatch({ type: 'SET_USER', payload: response.data.user });
     } catch (error) {
       dispatch({
-        type: 'LOGIN_FAILURE',
-        payload: error instanceof Error ? error.message : 'An error occurred during login',
+        type: 'SET_ERROR',
+        payload: error instanceof Error ? error.message : 'Failed to authenticate with Instagram',
       });
     }
   }, []);
 
   const logout = useCallback(async () => {
     try {
-      // TODO: Implement actual API call here
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-      });
-      dispatch({ type: 'LOGOUT' });
+      dispatch({ type: 'SET_LOADING' });
+      await axiosInstance.post('/auth/logout');
+      dispatch({ type: 'SET_USER', payload: null });
     } catch (error) {
-      console.error('Logout failed:', error);
-      // Still logout on client side even if API call fails
-      dispatch({ type: 'LOGOUT' });
+      dispatch({
+        type: 'SET_ERROR',
+        payload: error instanceof Error ? error.message : 'Failed to logout',
+      });
     }
   }, []);
 
@@ -108,10 +78,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const value: AuthContextType = {
     state,
-    login,
+    loginWithInstagram,
+    handleInstagramCallback,
     logout,
     clearError,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuthContext = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuthContext must be used within an AuthProvider');
+  }
+  return context;
 };
