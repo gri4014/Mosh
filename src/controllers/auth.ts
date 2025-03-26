@@ -1,187 +1,124 @@
-import { Response, NextFunction } from 'express';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Request, Response } from 'express';
 import { logger } from '../utils/logger';
-import { InstagramUserResponse } from '../types/instagram';
-import { LogMeta } from '../types/logger';
-import { instagramTokenService } from '../services/instagram/token.service';
-import { AuthenticatedRequest } from '../types/auth';
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { 
+  AuthenticatedRequest, 
+  RegisterRequest, 
+  LoginRequest, 
+  AuthResponse,
+  UserWithInstagramAccounts,
+  UserSelect,
+  UserWithPassword,
+  defaultUserSelect,
+  defaultUserWithPasswordSelect,
+  instagramAccountSelect
+} from '../types/auth';
 
 const prisma = new PrismaClient();
 
-interface InstagramTokenResponse {
-  access_token: string;
-  refresh_token?: string;
-  expires_in: number;
-}
-
-export const instagramCallback = async (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  // Get code from query parameters instead of body
-  const { code } = req.query;
-
-  if (!code) {
-    res.status(400).json({ error: 'Authorization code is required' });
-    return;
-  }
-
+export const register = async (req: Request<{}, {}, RegisterRequest>, res: Response): Promise<void> => {
   try {
-    // Exchange code for access token using Instagram's OAuth endpoint
-    const tokenResponse = await fetch('https://api.instagram.com/oauth/access_token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        client_id: process.env.INSTAGRAM_CLIENT_ID || '',
-        client_secret: process.env.INSTAGRAM_CLIENT_SECRET || '',
-        grant_type: 'authorization_code',
-        redirect_uri: process.env.INSTAGRAM_REDIRECT_URI || '',
-        code: code.toString(),
-      }),
-    });
+    const { email, password } = req.body;
+    const lowercaseEmail = email.toLowerCase();
 
-    if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.text();
-      logger.error('Token exchange failed', { error: errorData });
-      throw new Error('Failed to exchange code for access token');
-    }
-
-    const tokenData = await tokenResponse.json() as InstagramTokenResponse;
-
-    // Exchange short-lived token for long-lived token
-    const longLivedTokenResponse = await fetch(
-      `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${
-        process.env.INSTAGRAM_CLIENT_SECRET
-      }&access_token=${tokenData.access_token}`
-    );
-
-    if (!longLivedTokenResponse.ok) {
-      throw new Error('Failed to exchange for long-lived token');
-    }
-
-    const longLivedTokenData = await longLivedTokenResponse.json() as InstagramTokenResponse;
-
-    // Get user details from Instagram
-    const userResponse = await fetch(
-      `https://graph.instagram.com/me?fields=id,username,account_type&access_token=${longLivedTokenData.access_token}`
-    );
-
-    if (!userResponse.ok) {
-      throw new Error('Failed to get user details from Instagram');
-    }
-
-    const userData = (await userResponse.json()) as InstagramUserResponse;
-
-    // Begin transaction
-    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Check if Instagram account already exists
-      const existingAccount = await tx.instagramAccount.findUnique({
-        where: { username: userData.username },
-        include: { user: true },
-      });
-
-      if (existingAccount) {
-        // Update existing account
-        // Store the tokens securely
-        await instagramTokenService.storeTokens(existingAccount.user.id, {
-          accessToken: longLivedTokenData.access_token,
-          refreshToken: longLivedTokenData.refresh_token,
-          expiresAt: new Date(Date.now() + longLivedTokenData.expires_in * 1000),
-        });
-
-        const updatedAccount = await tx.instagramAccount.update({
-          where: { id: existingAccount.id },
-          data: {
-            accountType: userData.account_type,
-          },
-          include: { user: true },
-        });
-
-        return { user: updatedAccount.user, account: updatedAccount };
+    const existingUser = await prisma.user.findUnique({
+      where: {
+        email: lowercaseEmail
       }
-
-      // Create new user and Instagram account
-      const newUser = await tx.user.create({
-        data: {},
-      });
-
-      // Store tokens for new user
-      await instagramTokenService.storeTokens(newUser.id, {
-        accessToken: longLivedTokenData.access_token,
-        refreshToken: longLivedTokenData.refresh_token,
-        expiresAt: new Date(Date.now() + longLivedTokenData.expires_in * 1000),
-      });
-
-      const newAccount = await tx.instagramAccount.create({
-        data: {
-          accountType: userData.account_type,
-          username: userData.username,
-          userId: newUser.id,
-          accessToken: longLivedTokenData.access_token,
-          refreshToken: longLivedTokenData.refresh_token,
-          tokenExpiresAt: new Date(Date.now() + longLivedTokenData.expires_in * 1000),
-          lastRefreshed: new Date()
-        },
-      });
-
-      return { user: newUser, account: newAccount };
     });
 
-    // Set session
-    req.session.userId = result.user.id;
-
-    // Redirect to frontend dashboard after successful authentication
-    res.redirect(`${process.env.FRONTEND_URL}/dashboard`);
-  } catch (error) {
-    const logMeta: LogMeta = {
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
-    logger.error('Instagram callback error', logMeta);
-    // Redirect to frontend error page
-    res.redirect(`${process.env.FRONTEND_URL}/error?message=${encodeURIComponent('Authentication failed')}`);
-  }
-};
-
-export const logout = (req: AuthenticatedRequest, res: Response): void => {
-  req.session.destroy((err) => {
-    if (err) {
-      res.status(500).json({ error: 'Failed to logout' });
+    if (existingUser) {
+      res.status(400).json({ error: 'Email already registered' });
       return;
     }
-    res.json({ message: 'Logged out successfully' });
-  });
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    const newUser = await prisma.user.create({
+      data: {
+        email: lowercaseEmail,
+        password: hashedPassword
+      },
+      select: defaultUserSelect
+    });
+
+    const token = jwt.sign(
+      { userId: newUser.id },
+      process.env.JWT_SECRET!,
+      { expiresIn: '7d' }
+    );
+
+    const response: AuthResponse = {
+      ...newUser,
+      token
+    };
+
+    res.status(201).json(response);
+  } catch (error) {
+    logger.error('Registration error', { error });
+    res.status(500).json({ error: 'Registration failed' });
+  }
 };
 
-export const getUser = async (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+export const login = async (req: Request<{}, {}, LoginRequest>, res: Response): Promise<void> => {
   try {
-    const userId = req.session.userId;
-    if (!userId) {
+    const { email, password } = req.body;
+    const lowercaseEmail = email.toLowerCase();
+
+    const user = await prisma.user.findUnique({
+      where: {
+        email: lowercaseEmail
+      },
+      select: defaultUserWithPasswordSelect
+    }) as UserWithPassword | null;
+
+    if (!user) {
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
+    }
+
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
+    }
+
+    const token = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_SECRET!,
+      { expiresIn: '7d' }
+    );
+
+    const { password: _, ...userData } = user;
+    const response: AuthResponse = {
+      ...userData,
+      token
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    logger.error('Login error', { error });
+    res.status(500).json({ error: 'Login failed' });
+  }
+};
+
+export const getCurrentUser = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user?.id) {
       res.status(401).json({ error: 'Not authenticated' });
       return;
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
+      where: { id: req.user.id },
+      select: {
+        ...defaultUserSelect,
         instagramAccounts: {
-          select: {
-            id: true,
-            username: true,
-            accountType: true,
-            businessId: true,
-            followerCount: true,
-            followingCount: true,
-            mediaCount: true,
-          },
-        },
-      },
+          select: instagramAccountSelect
+        }
+      }
     });
 
     if (!user) {
@@ -189,8 +126,23 @@ export const getUser = async (
       return;
     }
 
-    res.json(user);
+    const response: UserWithInstagramAccounts = {
+      ...user,
+      instagramAccounts: user.instagramAccounts
+    };
+
+    res.status(200).json(response);
   } catch (error) {
-    next(error);
+    logger.error('Get current user error', { error });
+    res.status(500).json({ error: 'Failed to get user data' });
+  }
+};
+
+export const logout = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    res.status(200).json({ message: 'Logged out successfully' });
+  } catch (error) {
+    logger.error('Logout error', { error });
+    res.status(500).json({ error: 'Logout failed' });
   }
 };

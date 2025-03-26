@@ -1,11 +1,22 @@
 import { Prisma } from '@prisma/client';
 
-// Define types for nested includes
-export type InstagramAccountWithUser = Prisma.InstagramAccountGetPayload<{
-  include: { user: true };
-}>;
+declare global {
+  namespace PrismaTypes {
+    type UserPayload = Prisma.UserGetPayload<{
+      include: {
+        instagramAccounts: true;
+      };
+    }>;
 
-// Define input types
-export type InstagramAccountUpdateInput = Prisma.InstagramAccountUpdateInput;
-export type InstagramAccountCreateInput = Prisma.InstagramAccountCreateInput;
-export type UserCreateInput = Prisma.UserCreateInput;
+    type InstagramAccountPayload = Prisma.InstagramAccountGetPayload<{
+      select: {
+        id: true;
+        username: true;
+        accountType: true;
+        businessId: true;
+      };
+    }>;
+  }
+}
+
+export {};

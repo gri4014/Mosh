@@ -1,104 +1,84 @@
-import React, { createContext, useReducer, useCallback } from 'react';
-import { InstagramState, InstagramContextType, InstagramAccount } from '../types/instagram.types';
+import React, { createContext, useContext, useReducer, useCallback, ReactNode } from 'react';
+import { axiosInstance } from '../config/axios';
+
+interface InstagramAccount {
+  id: string;
+  username: string;
+  accountType: 'PERSONAL' | 'BUSINESS' | 'CREATOR';
+  businessId?: string;
+}
+
+interface InstagramState {
+  accounts: InstagramAccount[];
+  isLoading: boolean;
+  error: string | null;
+}
+
+interface InstagramContextValue extends InstagramState {
+  disconnectAccount: (accountId: string) => Promise<void>;
+  clearError: () => void;
+}
 
 const initialState: InstagramState = {
-  account: null,
-  isConnected: false,
-  loading: false,
+  accounts: [],
+  isLoading: false,
   error: null,
 };
 
-type InstagramAction =
-  | { type: 'CONNECT_REQUEST' }
-  | { type: 'CONNECT_SUCCESS'; payload: InstagramAccount }
-  | { type: 'CONNECT_FAILURE'; payload: string }
-  | { type: 'DISCONNECT_SUCCESS' }
+type Action =
+  | { type: 'SET_LOADING' }
+  | { type: 'SET_ACCOUNTS'; payload: InstagramAccount[] }
+  | { type: 'REMOVE_ACCOUNT'; payload: string }
+  | { type: 'SET_ERROR'; payload: string }
   | { type: 'CLEAR_ERROR' };
 
-function instagramReducer(state: InstagramState, action: InstagramAction): InstagramState {
+const instagramReducer = (state: InstagramState, action: Action): InstagramState => {
   switch (action.type) {
-    case 'CONNECT_REQUEST':
+    case 'SET_LOADING':
+      return { ...state, isLoading: true, error: null };
+    case 'SET_ACCOUNTS':
       return {
         ...state,
-        loading: true,
+        accounts: action.payload,
+        isLoading: false,
         error: null,
       };
-    case 'CONNECT_SUCCESS':
+    case 'REMOVE_ACCOUNT':
       return {
         ...state,
-        account: action.payload,
-        isConnected: true,
-        loading: false,
+        accounts: state.accounts.filter(account => account.id !== action.payload),
+        isLoading: false,
         error: null,
       };
-    case 'CONNECT_FAILURE':
-      return {
-        ...state,
-        account: null,
-        isConnected: false,
-        loading: false,
-        error: action.payload,
-      };
-    case 'DISCONNECT_SUCCESS':
-      return {
-        ...state,
-        account: null,
-        isConnected: false,
-        loading: false,
-        error: null,
-      };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload, isLoading: false };
     case 'CLEAR_ERROR':
-      return {
-        ...state,
-        error: null,
-      };
+      return { ...state, error: null };
     default:
       return state;
   }
+};
+
+const InstagramContext = createContext<InstagramContextValue | undefined>(undefined);
+
+interface InstagramProviderProps {
+  children: ReactNode;
 }
 
-export const InstagramContext = createContext<InstagramContextType | undefined>(undefined);
-
-export const InstagramProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const InstagramProvider: React.FC<InstagramProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(instagramReducer, initialState);
 
-  const connectAccount = useCallback(async (code: string) => {
+  const disconnectAccount = useCallback(async (accountId: string) => {
     try {
-      dispatch({ type: 'CONNECT_REQUEST' });
-      // TODO: Implement actual API call here
-      const response = await fetch('/api/instagram/connect', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ code }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Instagram connection failed');
-      }
-
-      const data = await response.json();
-      dispatch({ type: 'CONNECT_SUCCESS', payload: data.account });
+      dispatch({ type: 'SET_LOADING' });
+      await axiosInstance.delete(`/api/instagram/disconnect/${accountId}`);
+      dispatch({ type: 'REMOVE_ACCOUNT', payload: accountId });
     } catch (error) {
       dispatch({
-        type: 'CONNECT_FAILURE',
-        payload: error instanceof Error ? error.message : 'Failed to connect Instagram account',
+        type: 'SET_ERROR',
+        payload: error instanceof Error ? error.message : 'Failed to disconnect Instagram account',
       });
-    }
-  }, []);
-
-  const disconnectAccount = useCallback(async () => {
-    try {
-      // TODO: Implement actual API call here
-      await fetch('/api/instagram/disconnect', {
-        method: 'POST',
-      });
-      dispatch({ type: 'DISCONNECT_SUCCESS' });
-    } catch (error) {
-      console.error('Failed to disconnect Instagram account:', error);
-      // Still disconnect on client side even if API call fails
-      dispatch({ type: 'DISCONNECT_SUCCESS' });
+      throw error;
     }
   }, []);
 
@@ -106,12 +86,19 @@ export const InstagramProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     dispatch({ type: 'CLEAR_ERROR' });
   }, []);
 
-  const value: InstagramContextType = {
-    state,
-    connectAccount,
+  const value: InstagramContextValue = {
+    ...state,
     disconnectAccount,
     clearError,
   };
 
   return <InstagramContext.Provider value={value}>{children}</InstagramContext.Provider>;
+};
+
+export const useInstagram = (): InstagramContextValue => {
+  const context = useContext(InstagramContext);
+  if (context === undefined) {
+    throw new Error('useInstagram must be used within an InstagramProvider');
+  }
+  return context;
 };

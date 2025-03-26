@@ -1,20 +1,36 @@
 import { Response } from 'express';
 import { logger } from '../utils/logger';
+import { PrismaClient, Prisma, AccountType } from '@prisma/client';
+import { instagramTokenService } from '../services/instagram/token.service';
 import {
   InstagramWebhookRequest,
   InstagramWebhookEvent,
   InstagramMediaChange,
   InstagramCommentChange
 } from '../types/webhook';
+import { instagramConfig } from '../config/instagram';
+
+const prisma = new PrismaClient();
+
+interface InstagramTokenResponse {
+  access_token: string;
+  user_id: number;
+}
+
+interface InstagramUserResponse {
+  id: string;
+  username: string;
+}
 
 /**
- * Handles the webhook verification request from Instagram
+ * Handles GET requests for webhook verification
  */
-export const verifyWebhook = (req: InstagramWebhookRequest, res: Response): void => {
+export const verifyWebhook = async (req: InstagramWebhookRequest, res: Response): Promise<void> => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
+  // Handle webhook verification
   if (mode === 'subscribe' && token === process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN) {
     logger.info('Webhook verified successfully');
     res.status(200).send(challenge);
@@ -25,7 +41,7 @@ export const verifyWebhook = (req: InstagramWebhookRequest, res: Response): void
 };
 
 /**
- * Handles incoming webhook events from Instagram
+ * Handles POST requests - webhook events
  */
 export const handleWebhook = async (req: InstagramWebhookRequest, res: Response): Promise<void> => {
   const event = req.body as InstagramWebhookEvent;
@@ -66,12 +82,6 @@ async function handleMediaUpdate(change: InstagramMediaChange): Promise<void> {
     mediaId: change.value.id,
     mediaType: change.value.media_type
   });
-
-  // TODO: Implement media update handling
-  // For example:
-  // - Update local database with new media
-  // - Trigger notifications
-  // - Update analytics
 }
 
 /**
@@ -82,10 +92,4 @@ async function handleCommentUpdate(change: InstagramCommentChange): Promise<void
     commentId: change.value.id,
     timestamp: change.value.timestamp
   });
-
-  // TODO: Implement comment update handling
-  // For example:
-  // - Store comment in database
-  // - Process for sentiment analysis
-  // - Trigger automated responses
 }

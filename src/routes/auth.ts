@@ -1,20 +1,15 @@
-import { Router } from 'express';
-import { instagramCallback, logout, getUser } from '../controllers/auth';
-import { requireAuth } from '../middleware/auth';
-import { verifyInstagramToken } from '../middleware/instagram-auth';
+import express from 'express';
+import { register, login, getCurrentUser, logout } from '../controllers/auth';
+import { authMiddleware } from '../middleware/auth';
+import { requireFields } from '../middleware/validation';
+import { RegisterRequest, LoginRequest } from '../types/auth';
 
-const router = Router();
+const router = express.Router();
 
-// Public routes
-router.get('/instagram/callback', instagramCallback); // Changed from POST to GET
-
-// Protected routes that only require session auth
-router.post('/logout', requireAuth, logout);
-
-// Protected routes that require both session and Instagram token auth
-router.get('/me', requireAuth, verifyInstagramToken, getUser);
-
-// Export types from shared auth types
-export { AuthenticatedRequest, InstagramAuthenticatedRequest } from '../types/auth';
+// Auth routes
+router.post('/register', requireFields(['email', 'password']), register);
+router.post('/login', requireFields(['email', 'password']), login);
+router.get('/me', authMiddleware, getCurrentUser);
+router.post('/logout', authMiddleware, logout);
 
 export default router;

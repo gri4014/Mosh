@@ -1,9 +1,44 @@
 import React from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { useInstagram } from '../../hooks/useInstagram';
+import ConnectInstagramButton from '../instagram/ConnectInstagramButton';
 import styles from './Dashboard.module.css';
 
+const NoInstagramAccount = () => (
+  <div className={styles.noAccountCard}>
+    <h2 className={styles.welcomeTitle}>Connect Your Instagram Account</h2>
+    <p className={styles.welcomeText}>
+      To get started with Mosh, connect your Instagram account to access AI-powered content creation tools.
+    </p>
+    <ConnectInstagramButton className={styles.connectButton} />
+  </div>
+);
+
 const Dashboard: React.FC = () => {
-  const { state: { user } } = useAuth();
+  const { user } = useAuth();
+  const { accounts, isLoading } = useInstagram();
+
+  if (isLoading) {
+    return (
+      <div className={styles.loadingContainer}>
+        <div className={styles.spinner} />
+        <p>Loading dashboard...</p>
+      </div>
+    );
+  }
+
+  if (!accounts || accounts.length === 0) {
+    return (
+      <div className={styles.dashboard}>
+        <div className={styles.header}>
+          <h1 className={styles.title}>Dashboard</h1>
+        </div>
+        <div className={styles.content}>
+          <NoInstagramAccount />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.dashboard}>
@@ -17,7 +52,7 @@ const Dashboard: React.FC = () => {
             Welcome back!
           </h2>
           <p className={styles.welcomeText}>
-            You're connected with Instagram. Get started by creating your first AI-powered content strategy.
+            Connected as @{accounts[0].username}. Get started by creating your first AI-powered content strategy.
           </p>
         </div>
 

@@ -9,5 +9,5 @@ npm run dev &
 # Wait for servers to start
 sleep 5
 
-# Start ngrok with random URL
-ngrok http 3001
+# Start ngrok with reserved domain
+ngrok http --domain=mosh.ngrok.app 3001

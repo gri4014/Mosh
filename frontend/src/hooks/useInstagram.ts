@@ -1,13 +1,5 @@
-import { useContext } from 'react';
-import { InstagramContext } from '../context/InstagramContext';
-import { InstagramContextType } from '../types/instagram.types';
+import { useInstagram as useInstagramContext } from '../context/InstagramContext';
 
-export const useInstagram = (): InstagramContextType => {
-  const context = useContext(InstagramContext);
-  if (context === undefined) {
-    throw new Error('useInstagram must be used within an InstagramProvider');
-  }
-  return context;
+export const useInstagram = () => {
+  return useInstagramContext();
 };
-
-export default useInstagram;
